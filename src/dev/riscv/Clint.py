@@ -71,3 +71,9 @@ class Clint(BasicPioDevice):
         node.appendCompatible(["riscv,clint0"])
 
         yield node
+
+class ClintID(Clint):
+    type = 'ClintID'
+    cxx_header = 'dev/riscv/clintID.hh'
+    cxx_class = 'gem5::ClintID'
+    lint_id = Param.Int(0, "lint's id")

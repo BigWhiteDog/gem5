@@ -52,6 +52,7 @@ Source('simple.cc')
 Source('terminal.cc')
 Source('uart.cc')
 Source('uart8250.cc')
+Source('uartlite.cc')
 
 DebugFlag('Terminal')
 DebugFlag('TerminalVerbose')

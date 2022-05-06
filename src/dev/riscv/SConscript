@@ -48,3 +48,7 @@ Source('plic_device.cc', tags='riscv isa')
 Source('plic.cc', tags='riscv isa')
 Source('rtc.cc', tags='riscv isa')
 Source('vio_mmio.cc', tags='riscv isa')
+
+SimObject('Lint.py', sim_objects=['Lint'], tags='riscv isa')
+Source('lint.cc', tags='riscv isa')
+DebugFlag('Lint', tags='riscv isa')

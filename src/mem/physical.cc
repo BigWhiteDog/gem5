@@ -80,10 +80,14 @@ PhysicalMemory::PhysicalMemory(const std::string& _name,
                                const std::vector<AbstractMemory*>& _memories,
                                bool mmap_using_noreserve,
                                const std::string& shared_backstore,
-                               bool auto_unlink_shared_backstore) :
+                               bool auto_unlink_shared_backstore,
+                               bool restore_from_gcpt,
+                               const std::string& gcpt_path,) :
     _name(_name), size(0), mmapUsingNoReserve(mmap_using_noreserve),
     sharedBackstore(shared_backstore), sharedBackstoreSize(0),
     pageSize(sysconf(_SC_PAGE_SIZE))
+    restoreFromGCpt(restore_from_gcpt),
+    gCptPath(gcpt_path)
 {
     // Register cleanup callback if requested.
     if (auto_unlink_shared_backstore && !sharedBackstore.empty()) {
@@ -434,8 +438,6 @@ PhysicalMemory::unserialize(CheckpointIn &cp)
 void
 PhysicalMemory::unserializeStore(CheckpointIn &cp)
 {
-    const uint32_t chunk_size = 16384;
-
     unsigned int store_id;
     UNSERIALIZE_SCALAR(store_id);
 
@@ -443,6 +445,42 @@ PhysicalMemory::unserializeStore(CheckpointIn &cp)
     UNSERIALIZE_SCALAR(filename);
     std::string filepath = cp.getCptDir() + "/" + filename;
 
+    long range_size;
+    UNSERIALIZE_SCALAR(range_size);
+
+    unserializeStoreFrom(filepath, store_id, range_size);
+}
+
+void
+PhysicalMemory::unserializeStoreFromFile(string filepath)
+{
+    unserializeStoreFrom(filepath, 0, 0);
+}
+
+void
+PhysicalMemory::unserializeStoreFrom(string filepath,
+        unsigned store_id, long range_size)
+{
+    const uint32_t chunk_size = 16384;
+
+    // mmap memoryfile
+    gzFile compressed_mem = gzopen(filepath.c_str(), "rb");
+    if (compressed_mem == NULL)
+        fatal("Can't open physical memory checkpoint file '%s'",
+            filepath.c_str());
+
+    // we've already got the actual backing store mapped
+    uint8_t* pmem = backingStore[store_id].pmem;
+    AddrRange range = backingStore[store_id].range;
+
+    if (range_size != 0) {
+        DPRINTF(Checkpoint, "Unserializing physical memory %s with size %d\n",
+                filepath.c_str(), range_size);
+
+        if (range_size != (long) range.size())
+            fatal("Memory range size has changed! Saw %lld, expected %lld\n",
+                    range_size, range.size());
+    }
     // mmap memoryfile
     gzFile compressed_mem = gzopen(filepath.c_str(), "rb");
     if (compressed_mem == NULL)
@@ -488,7 +526,15 @@ PhysicalMemory::unserializeStore(CheckpointIn &cp)
 
     if (gzclose(compressed_mem))
         fatal("Close failed on physical memory checkpoint file '%s'\n",
-              filename);
+            filepath.c_str());
+}
+
+bool PhysicalMemory::tryRestoreFromGCpt() {
+  if (!restoreFromGCpt) {
+    return false;
+  }
+  unserializeStoreFromFile(gCptPath);
+  return true;
 }
 
 } // namespace memory
